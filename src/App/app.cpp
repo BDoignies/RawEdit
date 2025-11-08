@@ -3,6 +3,7 @@
 #include "raymath.h"
 #include "rlImGui.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 
 #include <iostream>
 
@@ -14,6 +15,9 @@ App::App()
     // Library setup
     InitWindow(screenWidth, screenHeight, "RawEdit");
     rlImGuiSetup(true);
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 }
 
 int App::run() 
@@ -40,72 +44,60 @@ void App::OnEvent()
 void App::OnRender()
 {
 
-    if (currentImage)
-    {
-        Vector2 pos = {
-            .x = 10,
-            .y = 10
-        };
-        DrawTextureEx(*currentImage, pos, 0.f, 0.1f, WHITE);
-        DrawRectangleLines(pos.x, pos.y, 6264 / 10, 4180 / 10, WHITE);
-    }
 }
 
 void App::OnUI()
 {
+    static bool init = true;
     rlImGuiBegin();
-    {
-        // bool show = true;
-        // ImGui::ShowDemoWindow(&show);
+    { 
+        // Main DockSpace
+        ImGuiID dockId = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
 
-        ImGui::Begin("Debug");
+        if (init)
         {
-            if (ImGui::Button("Load test image"))
-            {
-                const char* path = "../tests/photo.cr3";
+            init = false;
 
-                RawEdit::core::Image im;
-                RawEdit::core::Error err = im.open(path);
+            ImGui::DockBuilderAddNode(dockId, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockId, ImGui::GetMainViewport()->Size);
+            ImGuiID leftId, rightId;
+            ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Right, 0.25f, &rightId, &leftId);
 
-                if (err) 
-                {
-                    std::cerr << err.errorString << std::endl;
-                }
-                else
-                {
-                    // loadedImages.push_back(std::move(im));
-                    if (currentImage)
-                    {
-                        UnloadTexture(*currentImage);
-                        delete currentImage;
-                    }
-
-                    Image rlImage = {
-                         .data   = (void*)im.buffer(),
-                         .width  = (int)  im.width(),
-                         .height = (int)  im.height(),
-                         .mipmaps = 1,
-                         .format = PIXELFORMAT_UNCOMPRESSED_R8G8B8
-                     };
-
-                    // TODO: This is not working
-                    currentImage = new Texture(LoadTextureFromImage(rlImage));
-                }
-            }
-            
-            if (ImGui::CollapsingHeader("Images"))
-            {
-                for (unsigned int i = 0; i < loadedImages.size(); ++i)
-                {
-                    ImGui::Text("%s", loadedImages[i].str().c_str());
-                }
-            }
+            ImGui::DockBuilderDockWindow("Editor", rightId);
         }
-        ImGui::End();
+
+        MainMenu();
+        ParamMenu();
+        // ImGui::ShowDebugLogWindow();
     }
     rlImGuiEnd();
 }
 
+void App::MainMenu()
+{
+    if (ImGui::BeginMainMenuBar())
+    {
+        if (ImGui::BeginMenu("File"))
+        {
+            if (ImGui::MenuItem("Open"))
+            {
+            }
+            ImGui::EndMenu();
+        }
+    }
+    ImGui::EndMainMenuBar();
+}
+
+void App::ParamMenu()
+{
+    const unsigned int screenWidth  = GetScreenWidth();
+    const unsigned int screenHeight = GetScreenHeight();
+
+    ImGui::Begin("Editor");
+    {
+    }
+    ImGui::End();
+}
 
 App::~App()
 {

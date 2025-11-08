@@ -15,7 +15,8 @@ private:
     void OnEvent();
     void OnUI();
     void OnRender();
+
+    void MainMenu();
+    void ParamMenu();
 private:
-    std::vector<RawEdit::core::Image> loadedImages;
-    Texture2D* currentImage = nullptr;
 };

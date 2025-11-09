@@ -29,8 +29,8 @@ namespace RawEdit
             static Failable<RawImage> open(const char* path, bool loadDisplay = false, bool loadThumb = false);
             
             std::string getCamera() const;
-            Failable<Image> GetDisplay();
-            Failable<Image> GetThumbnail();
+            Failable<Image*> GetDisplay();
+            Failable<Image*> GetThumbnail();
 
             Error LoadDisplay();
             Error LoadThumbnail();

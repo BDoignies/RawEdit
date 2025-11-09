@@ -14,15 +14,17 @@ public:
 
     ~App();
 private:
+    void OnProcess();
     void OnEvent();
     void OnUI();
     void OnRender();
 
     void MainMenu();
     void ParamMenu();
-    void Debug();
 
-    void AsyncOpenFile(uint32_t idx, const char* path);
+    std::vector<std::string> OpenDialog();
+    
+    void AsyncOpenFile(const std::string& path);
 private:
     std::vector<RawEdit::core::RawImage> images;
     std::vector<Texture2D> textures;

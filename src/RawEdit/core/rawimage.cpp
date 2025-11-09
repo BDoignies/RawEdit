@@ -21,14 +21,14 @@ namespace RawEdit
             if (loadDisplay)
             {
                 Error err = img.LoadDisplay();
-                if (!err)
+                if (err)
                     return std::unexpected(err);
             }
 
             if (loadThumbnail)
             {
                 Error err = img.LoadThumbnail();
-                if (!err)
+                if (err)
                     return std::unexpected(err);
             }
 
@@ -43,26 +43,26 @@ namespace RawEdit
             return std::format("{} - {}", processor->imgdata.idata.make, processor->imgdata.idata.model);
         }
 
-        Failable<Image> RawImage::GetDisplay()
+        Failable<Image*> RawImage::GetDisplay()
         {
             if (display.data == nullptr)
             {
                 Error err = LoadDisplay();
-                if (!err)
+                if (err)
                     return std::unexpected(err);
             }
-            return display;
+            return &display;
         }
 
-        Failable<Image> RawImage::GetThumbnail()
+        Failable<Image*> RawImage::GetThumbnail()
         {
             if (thumbnail.data == nullptr)
             {
                 Error err = LoadThumbnail();
-                if (!err)
+                if (err)
                     return std::unexpected(err);
             }
-            return thumbnail;
+            return &thumbnail;
         }
 
         Error RawImage::LoadDisplay() 

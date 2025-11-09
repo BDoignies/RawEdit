@@ -1,4 +1,5 @@
 #include "app.h"
+#include "nfd.h"
 #include "raylib.h"
 #include "raymath.h"
 #include "rlImGui.h"
@@ -7,12 +8,33 @@
 
 #include <iostream>
 
+int RaylibFormatFromImage(const RawEdit::core::Image* img) 
+{
+    if (img->channels == 1)
+    {
+        if (img->bits == 8)
+            return PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+        else if (img->bits == 16)
+            return PIXELFORMAT_UNCOMPRESSED_R16;
+    }
+    else if (img->channels == 3)
+    {
+        if (img->bits == 8)
+            return PIXELFORMAT_UNCOMPRESSED_R8G8B8;
+        else if (img->bits == 16)
+            return PIXELFORMAT_UNCOMPRESSED_R16G16B16;
+    }
+
+    return 0;
+}
+
 App::App() 
 {
     const unsigned int screenWidth  = 1280;
     const unsigned int screenHeight = 1080;
     
     // Library setup
+    NFD_Init();
     InitWindow(screenWidth, screenHeight, "RawEdit");
     rlImGuiSetup(true);
 
@@ -24,6 +46,7 @@ int App::run()
 {
     while (!WindowShouldClose()) 
     {
+        OnProcess();
         BeginDrawing();
         {
             ClearBackground(DARKGRAY);
@@ -37,17 +60,29 @@ int App::run()
     return true;
 }
 
-void App::OnEvent() 
+void App::OnProcess()
 {
     for (auto it = loaders.begin(); it != loaders.end(); )
     {
         auto state = it->wait_for(std::chrono::milliseconds(0));
         if (state == std::future_status::ready) 
         {
-            RawEdit::core::Failable<RawEdit::core::RawImage> result = it->get();
+            auto result = it->get();
             if (result) 
             {
-                std::cout << "Image loaded" << std::endl;
+                // LoadTexture into the pool
+                auto display = result->GetDisplay();
+                if (display)
+                {
+                    Image im = {
+                        .data    = (*display)->data,
+                        .width   = (*display)->width, 
+                        .height  = (*display)->height, 
+                        .mipmaps = 1,
+                        .format  = RaylibFormatFromImage(*display)
+                    };
+                    textures.push_back(LoadTextureFromImage(im));
+                }
             }
             it = loaders.erase(it);
         }
@@ -58,8 +93,27 @@ void App::OnEvent()
     }
 }
 
+void App::OnEvent() 
+{
+}
+
 void App::OnRender()
 {
+    const unsigned int selectId = 0;
+    if (textures.size() != 0)
+    {
+        const Rectangle src = {
+            0.f, 0.f,
+            (float)textures[selectId].width, 
+            (float)textures[selectId].height
+        };
+        const Rectangle dest = {
+            100, 100, 
+            600, 600
+        };
+
+        DrawTexturePro(textures[selectId], src, dest, Vector2Zero(), 0.f, WHITE); 
+    }
 
 }
 
@@ -98,6 +152,9 @@ void App::MainMenu()
         {
             if (ImGui::MenuItem("Open"))
             {
+                std::vector<std::string> files = OpenDialog();
+                for (const auto& p : files)
+                    AsyncOpenFile(p);
             }
             ImGui::EndMenu();
         }
@@ -116,12 +173,38 @@ void App::ParamMenu()
     ImGui::End();
 }
 
-void App::AsyncOpenFile(uint32_t idx, const char* path)
+std::vector<std::string> App::OpenDialog()
+{
+    const nfdpathset_t* outPaths;
+    nfdresult_t result = NFD_OpenDialogMultiple(&outPaths, nullptr, 0, nullptr);
+
+    if (result == NFD_OKAY) 
+    {
+        nfdpathsetsize_t numPaths;
+        NFD_PathSet_GetCount(outPaths, &numPaths);
+
+        std::vector<std::string> paths(numPaths);
+        for (size_t i = 0; i < numPaths; ++i)
+        {
+            nfdchar_t* path;
+            NFD_PathSet_GetPathU8(outPaths, i, &path);
+
+            paths[i] = path;
+            NFD_PathSet_FreePath(path);
+        }
+        return paths;
+    }
+
+    return {};
+}
+
+void App::AsyncOpenFile(const std::string& path)
 {
     loaders.push_back(
         std::async(std::launch::async,
-        [&]() {
-            return RawEdit::core::RawImage::open(path, true, false);
+        [=]() {
+            auto rslt = RawEdit::core::RawImage::open(path.c_str(), true, false);
+            return rslt;
         }
     ));
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <expected>
 #include <string>
 
 namespace RawEdit
@@ -10,12 +11,17 @@ namespace RawEdit
         {
             enum class Code
             {
-                NO_ERROR = 0,
-                UK_ERROR = 1,
-                IO_ERROR = 2, 
+                NO_ERROR              = 0,
+                UK_ERROR              = 1,
+                NOT_IMPLEMENTED_ERROR = 2,
+                IO_ERROR              = 3 
             };
 
             Error(Code _code) : code(_code) 
+            { }
+
+            Error(Code _code, std::string _msg) : 
+                code(_code), errorString(std::move(_msg))
             { }
 
             operator bool() const
@@ -31,5 +37,8 @@ namespace RawEdit
         {
             return Error(Error::Code::NO_ERROR);
         }
+
+        template <typename T>
+        using Failable = std::expected<T, Error>;
     }
 }

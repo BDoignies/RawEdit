@@ -39,6 +39,23 @@ int App::run()
 
 void App::OnEvent() 
 {
+    for (auto it = loaders.begin(); it != loaders.end(); )
+    {
+        auto state = it->wait_for(std::chrono::milliseconds(0));
+        if (state == std::future_status::ready) 
+        {
+            RawEdit::core::Failable<RawEdit::core::RawImage> result = it->get();
+            if (result) 
+            {
+                std::cout << "Image loaded" << std::endl;
+            }
+            it = loaders.erase(it);
+        }
+        else 
+        {
+            ++it;
+        }
+    }
 }
 
 void App::OnRender()
@@ -97,6 +114,16 @@ void App::ParamMenu()
     {
     }
     ImGui::End();
+}
+
+void App::AsyncOpenFile(uint32_t idx, const char* path)
+{
+    loaders.push_back(
+        std::async(std::launch::async,
+        [&]() {
+            return RawEdit::core::RawImage::open(path, true, false);
+        }
+    ));
 }
 
 App::~App()

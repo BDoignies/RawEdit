@@ -24,10 +24,14 @@ private:
     void MainMenu();
     void ParamMenu();
 
+    void SelectImageToDisplay(uint32_t id);
+
     std::vector<std::string> OpenDialog();
     
     void AsyncOpenFile(const std::string& path);
 private:
+    Rectangle GetAvailableRegion() const;
+private: // Image data
     std::vector<RawEdit::core::ImagePtr> images;
     std::vector<Texture2D> textures;
 
@@ -35,5 +39,8 @@ private:
 
     // Image loaders
     std::vector<std::future<RawEdit::core::Failable<RawEdit::core::ImagePtr>>> loaders;
+private: // Display Image data
+    Rectangle imageRect; 
+    Rectangle imageDest;
+    uint32_t imageId = 0;
 };
-

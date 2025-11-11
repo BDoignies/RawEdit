@@ -38,6 +38,17 @@ namespace RawEdit
             return Error(Error::Code::NO_ERROR);
         }
 
+        inline Error IOError(const std::string& message)
+        {
+            return Error(Error::Code::IO_ERROR, message);
+        }
+
+        inline Error NotImplemented(const std::string& message)
+        {
+            return Error(Error::Code::NOT_IMPLEMENTED_ERROR, message);
+        }
+
+
         template <typename T>
         using Failable = std::expected<T, Error>;
     }

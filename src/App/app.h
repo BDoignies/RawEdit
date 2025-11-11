@@ -1,6 +1,8 @@
 #pragma once
 
 #include <future>
+#include <string>
+#include <vector>
 
 #include "raylib.h"
 #include "RawEdit/RawEdit.h"
@@ -26,12 +28,12 @@ private:
     
     void AsyncOpenFile(const std::string& path);
 private:
-    std::vector<RawEdit::core::RawImage> images;
+    std::vector<RawEdit::core::ImagePtr> images;
     std::vector<Texture2D> textures;
 
     std::vector<std::string> paths;
 
     // Image loaders
-    std::vector<std::future<RawEdit::core::Failable<RawEdit::core::RawImage>>> loaders;
+    std::vector<std::future<RawEdit::core::Failable<RawEdit::core::ImagePtr>>> loaders;
 };
 

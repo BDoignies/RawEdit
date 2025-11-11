@@ -1,7 +1,6 @@
 add_library(
     RawEditCore STATIC
-    # image.cpp
-    rawimage.cpp
+    image.cpp
 )
-target_link_libraries(RawEditCore PUBLIC libraw)
+target_link_libraries(RawEditCore PUBLIC libraw stbimage)
 target_include_directories(RawEditCore PUBLIC ${CMAKE_CURRENT_LIST_DIR}})

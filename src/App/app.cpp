@@ -4,27 +4,28 @@
 #include "raymath.h"
 #include "rlImGui.h"
 #include "imgui.h"
+#include "spdlog/spdlog.h"
 #include "imgui_internal.h"
 
 #include <iostream>
 
-int RaylibFormatFromImage(const RawEdit::core::Image* img) 
+int RaylibFormatFromImage(RawEdit::core::ImagePtr img) 
 {
     if (img->channels == 1)
     {
-        if (img->bits == 8)
+        if (img->bytes == 1)
             return PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
-        else if (img->bits == 16)
+        else if (img->bytes == 2)
             return PIXELFORMAT_UNCOMPRESSED_R16;
     }
     else if (img->channels == 3)
     {
-        if (img->bits == 8)
+        if (img->bytes == 1)
             return PIXELFORMAT_UNCOMPRESSED_R8G8B8;
-        else if (img->bits == 16)
+    else if (img->bytes == 2)
             return PIXELFORMAT_UNCOMPRESSED_R16G16B16;
     }
-
+    spdlog::warn("Unknown pixel format for image");
     return 0;
 }
 
@@ -70,19 +71,26 @@ void App::OnProcess()
             auto result = it->get();
             if (result) 
             {
-                // LoadTexture into the pool
-                auto display = result->GetDisplay();
-                if (display)
+                if ((*result)->data != nullptr)
                 {
                     Image im = {
-                        .data    = (*display)->data,
-                        .width   = (*display)->width, 
-                        .height  = (*display)->height, 
+                        .data    = (*result)->data,
+                        .width   = (int)(*result)->width, 
+                        .height  = (int)(*result)->height, 
                         .mipmaps = 1,
-                        .format  = RaylibFormatFromImage(*display)
+                        .format  = RaylibFormatFromImage(*result)
                     };
+                    images.push_back(*result);
                     textures.push_back(LoadTextureFromImage(im));
                 }
+                else 
+                {
+                    spdlog::error("Unknown error");
+                }
+            }
+            else 
+            {
+                spdlog::error("{}", result.error().errorString);
             }
             it = loaders.erase(it);
         }
@@ -200,10 +208,16 @@ std::vector<std::string> App::OpenDialog()
 
 void App::AsyncOpenFile(const std::string& path)
 {
+    using namespace RawEdit::algorithm;
+    using namespace RawEdit::core;
+
     loaders.push_back(
         std::async(std::launch::async,
-        [=]() {
-            auto rslt = RawEdit::core::RawImage::open(path.c_str(), true, false);
+        [=]() -> Failable<ImagePtr> {
+            spdlog::info("Loading {}", path);
+            auto rslt = OpenImage(path.c_str());
+            if (rslt)
+                return Rescale(*rslt, 500, 500, RescaleMethod::NEAREST);
             return rslt;
         }
     ));
@@ -214,4 +228,5 @@ App::~App()
     rlImGuiShutdown();
     CloseWindow();
 }
+
 

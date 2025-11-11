@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <iostream>
+#include <format>
 
 namespace RawEdit
 {
@@ -22,8 +23,8 @@ namespace RawEdit
             {
                 for (uint32_t j = 0; j < w; ++j)
                 {
-                    const uint32_t srcX = std::min((uint32_t)(j * wratio), im->width);
-                    const uint32_t srcY = std::min((uint32_t)(i * hratio), im->height);
+                    const uint32_t srcX = std::min((uint32_t)(j * wratio), im->width  - 1);
+                    const uint32_t srcY = std::min((uint32_t)(i * hratio), im->height - 1);
 
                     memcpy(
                         newIm->data + newIm->GetIndex(   i,    j, 0),
@@ -56,22 +57,22 @@ namespace RawEdit
                 for (uint32_t j = 0; j < w; ++j)
                 {
                     const float x = (j * wratio);
-                    const float y = (i * wratio);
+                    const float y = (i * hratio);
 
-                    const uint32_t xi = std::min((uint32_t)x, im->width);
-                    const uint32_t yi = std::min((uint32_t)y, im->height);
-                    const uint32_t xj = std::min(xi + 1, im->width);
-                    const uint32_t yj = std::min(yi + 1, im->height);
+                    const uint32_t xi = std::min((uint32_t)x, im->width  - 1);
+                    const uint32_t yi = std::min((uint32_t)y, im->height - 1);
+                    const uint32_t xj = std::min(xi + 1, im->width  - 1);
+                    const uint32_t yj = std::min(yi + 1, im->height - 1);
 
-                    const float xw = x - xj;
-                    const float yw = y - yj;
+                    const float xw = x - xi;
+                    const float yw = y - yi;
 
                     for (uint32_t ch = 0; ch < im->channels; ++ch)
                     {
-                        const float a = (float)im->GetValue(xi, yi, ch);
-                        const float b = (float)im->GetValue(xj, yi, ch);
-                        const float c = (float)im->GetValue(xi, yj, ch);
-                        const float d = (float)im->GetValue(xj, yj, ch);
+                        const float a = (float)im->GetValue(yi, xi, ch);
+                        const float b = (float)im->GetValue(yj, xi, ch);
+                        const float c = (float)im->GetValue(yi, xj, ch);
+                        const float d = (float)im->GetValue(yj, xj, ch);
 
                         const float val = 
                             a * (1 - xw) * (1 - yw) +
@@ -79,7 +80,7 @@ namespace RawEdit
                             c * (1 - xw) *      yw  +
                             d *      xw  *      yw;
 
-                        im->SetValue(i, j, ch, val);
+                        newIm->SetValue(i, j, ch, val);
                     }
                 }
             }

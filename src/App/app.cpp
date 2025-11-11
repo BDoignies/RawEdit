@@ -216,8 +216,8 @@ void App::AsyncOpenFile(const std::string& path)
         [=]() -> Failable<ImagePtr> {
             spdlog::info("Loading {}", path);
             auto rslt = OpenImage(path.c_str());
-            if (rslt)
-                return Rescale(*rslt, 500, 500, RescaleMethod::NEAREST);
+            // #if (rslt)
+            // #    return Rescale(*rslt, 500, 500, RescaleMethod::BILINEAR);
             return rslt;
         }
     ));

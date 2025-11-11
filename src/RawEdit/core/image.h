@@ -3,6 +3,8 @@
 #include <string>
 #include <memory>
 #include <cstring>
+#include <iostream>
+#include <variant>
 #include "error.h"
 
 namespace RawEdit
@@ -30,6 +32,7 @@ namespace RawEdit
         {
             static constexpr uint32_t MAX_BYTES_PER_COMP = 4;
             using MAX_COMP_TYPE = uint64_t;
+            using AnyInt = std::variant<uint8_t, uint16_t, uint32_t, uint64_t>;
 
             Metadata metadata;
 
@@ -49,8 +52,21 @@ namespace RawEdit
             template<typename T>
             inline void SetValue(uint32_t i, uint32_t j, uint32_t c, T val)
             {
-                MAX_COMP_TYPE iVal = val;
-                memcpy(data + GetIndex(i, j, c), &iVal, bytes);
+                AnyInt iVal;
+                switch(bytes)
+                {
+                    case 1: iVal = std::uint8_t(val);  break;
+                    case 2: iVal = std::uint16_t(val); break;
+                    case 3:
+                    case 4: iVal = std::uint32_t(val); break;
+                    default:
+                        iVal = std::uint64_t(val);
+                        break;
+
+                }
+                std::visit([&](const auto& v) {
+                    memcpy(data + GetIndex(i, j, c), &v, bytes);
+                }, iVal);
             }
 
             inline MAX_COMP_TYPE GetValue(uint32_t i, uint32_t j, uint32_t c) const

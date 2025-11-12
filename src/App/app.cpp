@@ -8,6 +8,7 @@
 #include "imgui_internal.h"
 
 #include <iostream>
+#include <cmath>
 
 #define EDITOR_WINDOW "Editor"
 
@@ -54,7 +55,6 @@ int App::run()
         {
             ClearBackground(DARKGRAY);
 
-            OnEvent();
             OnUI();
             OnRender();
         }
@@ -66,10 +66,6 @@ int App::run()
 void App::SelectImageToDisplay(uint32_t id)
 {
     imageId = id;
-    imageRect.x = 0;
-    imageRect.y = 0;
-    imageRect.width  = textures[id].width;
-    imageRect.height = textures[id].height;
 }
 
 void App::OnProcess()
@@ -114,10 +110,6 @@ void App::OnProcess()
     }
 }
 
-void App::OnEvent() 
-{
-}
-
 Rectangle App::GetAvailableRegion() const
 {
     const uint32_t padding = 50;
@@ -145,15 +137,9 @@ Rectangle App::GetAvailableRegion() const
     };
 }
 
-
-void App::OnRender()
+Rectangle App::ComputeMainImageArea() const
 {
-    if (imageId >= textures.size()) 
-        return;
-    
     const auto& texture = textures[imageId];
-    const float aspect  = texture.width / texture.height;
-    
     const Rectangle available = GetAvailableRegion();
     Rectangle dest = available;
     if (texture.width > texture.height)
@@ -175,8 +161,77 @@ void App::OnRender()
     // Update position
     dest.x += 0.5f * (available.width  - dest.width);
     dest.y += 0.5f * (available.height - dest.height);
+    
+    return dest;
+}
 
-    DrawTexturePro(texture, imageRect, dest, Vector2Zero(), 0.f, WHITE); 
+Rectangle App::ComputeMainImageSrcArea(Rectangle area) 
+{
+    const float maxZoom = 1000.f;
+    const float scrollSpeed = 5.f;
+    const float zoomSpeed = 0.2f;
+    const auto& texture = textures[imageId];
+
+    const Vector2 pos = GetMousePosition();
+    const Vector2 delta = GetMouseDelta();
+    const Vector2 topLeft = Vector2{.x = area.x, .y = area.y};
+    const Vector2 texSize = {.x = (float)texture.width, .y = (float)texture.height};
+    const float wheel = GetMouseWheelMove();
+    if (CheckCollisionPointRec(pos, area))
+    {
+        if (wheel != 0)
+        {
+            const float oldZoom = imageZoom;
+            const float newZoom = std::exp(std::log(imageZoom) + zoomSpeed * wheel);
+            
+            if (newZoom < maxZoom)
+            {
+                const float ax = (pos.x - area.x) / area.width ;
+                const float ay = (pos.y - area.y) / area.height;
+                const float cW = std::min(texSize.x / oldZoom, texSize.x);
+                const float cH = std::min(texSize.y / oldZoom, texSize.y);
+                const float nW = std::min(texSize.x / newZoom, texSize.x);
+                const float nH = std::min(texSize.y / newZoom, texSize.y);
+                
+                imagePos.x -= ax * (nW - cW);
+                imagePos.y -= ay * (nH - cH);
+                imageZoom = newZoom;
+            }
+        }
+
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT))
+        {
+            const Vector2 scaledDelta = Vector2Scale(delta, -scrollSpeed / imageZoom);
+            imagePos = Vector2Add(imagePos, scaledDelta);
+        }
+    }
+    imageZoom  = Clamp(imageZoom, 1, maxZoom);
+    
+    const float width  = std::min(texSize.x / imageZoom, texSize.x);
+    const float height = std::min(texSize.y / imageZoom, texSize.y);
+
+    imagePos.x = Clamp(imagePos.x, 0, texSize.x - width);
+    imagePos.y = Clamp(imagePos.y, 0, texSize.y - height);
+    const float x = imagePos.x;
+    const float y = imagePos.y;
+
+    return Rectangle {
+        .x = x, .y = y, .width = width, .height = height
+    };
+}
+
+void App::OnRender()
+{
+    if (imageId >= textures.size()) 
+        return;
+    
+    const auto& texture = textures[imageId];
+    const float aspect  = texture.width / texture.height;
+    
+    const Rectangle dest = ComputeMainImageArea();
+    const Rectangle src  = ComputeMainImageSrcArea(dest);
+
+    DrawTexturePro(texture, src, dest, Vector2Zero(), 0.f, WHITE); 
 }
 
 void App::OnUI()

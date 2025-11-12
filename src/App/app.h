@@ -31,6 +31,8 @@ private:
     void AsyncOpenFile(const std::string& path);
 private:
     Rectangle GetAvailableRegion() const;
+    Rectangle ComputeMainImageArea() const;
+    Rectangle ComputeMainImageSrcArea(Rectangle area);
 private: // Image data
     std::vector<RawEdit::core::ImagePtr> images;
     std::vector<Texture2D> textures;
@@ -40,7 +42,8 @@ private: // Image data
     // Image loaders
     std::vector<std::future<RawEdit::core::Failable<RawEdit::core::ImagePtr>>> loaders;
 private: // Display Image data
-    Rectangle imageRect; 
-    Rectangle imageDest;
     uint32_t imageId = 0;
+
+    Vector2 imagePos{0};
+    float   imageZoom = 1.f;
 };

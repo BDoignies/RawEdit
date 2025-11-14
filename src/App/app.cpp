@@ -11,27 +11,6 @@
 #include <cmath>
 
 #define EDITOR_WINDOW "Editor"
-
-int RaylibFormatFromImage(RawEdit::core::ImagePtr img) 
-{
-    if (img->channels == 1)
-    {
-        if (img->bytes == 1)
-            return PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
-        else if (img->bytes == 2)
-            return PIXELFORMAT_UNCOMPRESSED_R16;
-    }
-    else if (img->channels == 3)
-    {
-        if (img->bytes == 1)
-            return PIXELFORMAT_UNCOMPRESSED_R8G8B8;
-    else if (img->bytes == 2)
-            return PIXELFORMAT_UNCOMPRESSED_R16G16B16;
-    }
-    spdlog::warn("Unknown pixel format for image");
-    return 0;
-}
-
 App::App() 
 {
     const unsigned int screenWidth  = 1280;
@@ -48,67 +27,32 @@ App::App()
 
 int App::run() 
 {
+    float time = 0.f;
     while (!WindowShouldClose()) 
     {
-        OnProcess();
+        const float current = GetTime();
+        const float dt = current - time;
+
+        OnProcess(dt);
         BeginDrawing();
         {
             ClearBackground(DARKGRAY);
 
-            OnUI();
-            OnRender();
+            OnUI(dt);
+            OnRender(dt);
         }
         EndDrawing();
+
+        time = current;
     }
     return true;
 }
 
-void App::SelectImageToDisplay(uint32_t id)
+void App::OnProcess(float dt)
 {
-    imageId = id;
+    manager.Update();
 }
 
-void App::OnProcess()
-{
-    for (auto it = loaders.begin(); it != loaders.end(); )
-    {
-        auto state = it->wait_for(std::chrono::milliseconds(0));
-        if (state == std::future_status::ready) 
-        {
-            auto result = it->get();
-            if (result) 
-            {
-                if ((*result)->data != nullptr)
-                {
-                    Image im = {
-                        .data    = (*result)->data,
-                        .width   = (int)(*result)->width, 
-                        .height  = (int)(*result)->height, 
-                        .mipmaps = 1,
-                        .format  = RaylibFormatFromImage(*result)
-                    };
-                    images.push_back(*result);
-                    textures.push_back(LoadTextureFromImage(im));
-
-                    SelectImageToDisplay(textures.size() - 1);
-                }
-                else 
-                {
-                    spdlog::error("Unknown error");
-                }
-            }
-            else 
-            {
-                spdlog::error("{}", result.error().errorString);
-            }
-            it = loaders.erase(it);
-        }
-        else 
-        {
-            ++it;
-        }
-    }
-}
 
 Rectangle App::GetAvailableRegion() const
 {
@@ -139,7 +83,7 @@ Rectangle App::GetAvailableRegion() const
 
 Rectangle App::ComputeMainImageArea() const
 {
-    const auto& texture = textures[imageId];
+    const auto& texture = *manager.CurrentRLTexture();
     const Rectangle available = GetAvailableRegion();
     Rectangle dest = available;
     if (texture.width > texture.height)
@@ -170,7 +114,7 @@ Rectangle App::ComputeMainImageSrcArea(Rectangle area)
     const float maxZoom = 1000.f;
     const float scrollSpeed = 5.f;
     const float zoomSpeed = 0.2f;
-    const auto& texture = textures[imageId];
+    const auto& texture = *manager.CurrentRLTexture();
 
     const Vector2 pos = GetMousePosition();
     const Vector2 delta = GetMouseDelta();
@@ -220,21 +164,22 @@ Rectangle App::ComputeMainImageSrcArea(Rectangle area)
     };
 }
 
-void App::OnRender()
+void App::OnRender(float dt)
 {
-    if (imageId >= textures.size()) 
-        return;
-    
-    const auto& texture = textures[imageId];
-    const float aspect  = texture.width / texture.height;
-    
-    const Rectangle dest = ComputeMainImageArea();
-    const Rectangle src  = ComputeMainImageSrcArea(dest);
+    auto im = manager.CurrentImage();
+    if (im != nullptr)
+    {
+        const auto& texture = *manager.CurrentRLTexture();
+        const float aspect  = texture.width / texture.height;
+        
+        const Rectangle dest = ComputeMainImageArea();
+        const Rectangle src  = ComputeMainImageSrcArea(dest);
 
-    DrawTexturePro(texture, src, dest, Vector2Zero(), 0.f, WHITE); 
+        DrawTexturePro(texture, src, dest, Vector2Zero(), 0.f, WHITE); 
+    }
 }
 
-void App::OnUI()
+void App::OnUI(float dt)
 {
     static bool init = true;
     rlImGuiBegin();
@@ -254,14 +199,14 @@ void App::OnUI()
             ImGui::DockBuilderDockWindow(EDITOR_WINDOW, rightId);
         }
 
-        MainMenu();
-        ParamMenu();
-        // ImGui::ShowDebugLogWindow();
+        MainMenu(dt);
+        ParamMenu(dt);
+        ImGui::ShowDebugLogWindow();
     }
     rlImGuiEnd();
 }
 
-void App::MainMenu()
+void App::MainMenu(float dt)
 {
     if (ImGui::BeginMainMenuBar())
     {
@@ -271,7 +216,7 @@ void App::MainMenu()
             {
                 std::vector<std::string> files = OpenDialog();
                 for (const auto& p : files)
-                    AsyncOpenFile(p);
+                    manager.AddImage(p);
             }
             ImGui::EndMenu();
         }
@@ -279,13 +224,36 @@ void App::MainMenu()
     ImGui::EndMainMenuBar();
 }
 
-void App::ParamMenu()
+void App::ParamMenu(float dt)
 {
+    static int fpsAvg = 0;
+    static int fpsCount = 0;
+    const int fps = static_cast<int>(1.f / dt);
+
+    fpsAvg = fpsAvg + (fps - fpsAvg) / ++fpsCount;
+
     const unsigned int screenWidth  = GetScreenWidth();
     const unsigned int screenHeight = GetScreenHeight();
-
+    ImGuiTreeNodeFlags flag = ImGuiTreeNodeFlags_DefaultOpen;
     ImGui::Begin(EDITOR_WINDOW);
     {
+        if (ImGui::TreeNodeEx("Performance", flag))
+        {
+            static const char* rescaleMethods[]{
+                "None", "Linear", "Bilinear", "Bicubic"
+            };
+            ImGui::Text("FPS: %d (%d)", fpsAvg, fps);
+            ImGui::Text("Imaged loaded: %d", manager.NbImageLoaded());
+            ImGui::Text("Imaged loading: %d", manager.NbImageLoading());
+            ImGui::Text("Ram: %dM / VRam: %dM", manager.RamUsage(), manager.VRamUsage());
+            
+            float factor = manager.GetResizeFactor();
+            ImGui::SliderFloat("Resize Factor", &factor, 0.f, 1.f);
+            manager.SetResizeFactor(factor);
+            if (ImGui::Button("Reload all"))
+                manager.Reload();
+            ImGui::TreePop();
+        }
     }
     ImGui::End();
 }
@@ -313,20 +281,6 @@ std::vector<std::string> App::OpenDialog()
     }
 
     return {};
-}
-
-void App::AsyncOpenFile(const std::string& path)
-{
-    using namespace RawEdit::algorithm;
-    using namespace RawEdit::core;
-
-    loaders.push_back(
-        std::async(std::launch::async,
-        [=]() -> Failable<ImagePtr> {
-            spdlog::info("Loading {}", path);
-            return OpenImage(path.c_str());
-        }
-    ));
 }
 
 App::~App()

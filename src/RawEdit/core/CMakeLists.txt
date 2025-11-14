@@ -1,6 +1,7 @@
 add_library(
     RawEditCore STATIC
     image.cpp
+    openglimage.cpp
 )
-target_link_libraries(RawEditCore PUBLIC libraw stbimage)
+target_link_libraries(RawEditCore PUBLIC libraw stbimage OpenMP::OpenMP_CXX)
 target_include_directories(RawEditCore PUBLIC ${CMAKE_CURRENT_LIST_DIR}})

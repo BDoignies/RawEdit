@@ -5,7 +5,11 @@
 #include <cstring>
 #include <iostream>
 #include <variant>
+#include <stdfloat>
 #include "error.h"
+#include "openglimage.h"
+
+#include "GL/gl.h"
 
 namespace RawEdit
 {
@@ -19,67 +23,56 @@ namespace RawEdit
 
         enum class Device
         {
-            CPU        = 1,
-            GPU_OPENGL,
-            GPU_CUDA
+            CPU = 0, 
+            GPU_OPENGL = 1
         };
-        
-        // Deleter for data will be provided with the returned
-        // shared_ptr. 
-        // This allows for data to hold completly different 
-        // ressources that are dealocated whenever needed
+
         struct Image
         {
-            static constexpr uint32_t MAX_BYTES_PER_COMP = 4;
-            using MAX_COMP_TYPE = uint64_t;
-            using AnyInt = std::variant<uint8_t, uint16_t, uint32_t, uint64_t>;
-
             Metadata metadata;
 
             uint32_t width    = 0;
             uint32_t height   = 0;
-            uint8_t  channels = 0;
-            uint8_t  bytes    = 0;
+            std::float16_t* data  = nullptr;
+            
+            OpenGLImage gpuImage;
+            OpenGLImage workingCopy;
 
-            Device device;
-            uint8_t* data = nullptr;
+            Image() {}
+            Image(const Image& other) = delete;
+            Image(Image&& other)      = delete;
+            Image& operator=(const Image& other) = delete;
+            ~Image();
+
+            Error UploadGPU();
 
             inline uint32_t GetIndex(uint32_t i, uint32_t j, uint32_t c) const 
             {
-                return (c + (j + i * width) * channels) * bytes;
+                return c + (j + i * width) * 3;
+            }
+
+            inline uint64_t DataSize() const 
+            {
+                return width * height * 3 * sizeof(std::float16_t);
+            }
+
+            inline uint64_t GPUDataSize() const 
+            {
+                return (gpuImage.width * gpuImage.height + workingCopy.width * workingCopy.height) * 3 * sizeof(std::float16_t);
             }
             
-            template<typename T>
-            inline void SetValue(uint32_t i, uint32_t j, uint32_t c, T val)
+            inline void SetValue(uint32_t i, uint32_t j, uint32_t c, std::float16_t val)
             {
-                AnyInt iVal;
-                switch(bytes)
-                {
-                    case 1: iVal = std::uint8_t(val);  break;
-                    case 2: iVal = std::uint16_t(val); break;
-                    case 3:
-                    case 4: iVal = std::uint32_t(val); break;
-                    default:
-                        iVal = std::uint64_t(val);
-                        break;
-
-                }
-                std::visit([&](const auto& v) {
-                    memcpy(data + GetIndex(i, j, c), &v, bytes);
-                }, iVal);
+                data[GetIndex(i, j, c)] = val;
             }
 
-            inline MAX_COMP_TYPE GetValue(uint32_t i, uint32_t j, uint32_t c) const
+            inline std::float16_t GetValue(uint32_t i, uint32_t j, uint32_t c) const
             {
-                MAX_COMP_TYPE value;
-                memcpy(&value, data + GetIndex(i, j, c), bytes);
-                return value;
+                return data[GetIndex(i, j, c)];
             }
         };
-        using ImagePtr = std::shared_ptr<Image>;
 
-        Failable<ImagePtr> Transfer(ImagePtr source, Device device);
-        Failable<ImagePtr> OpenImage(const char* path, Device device = Device::CPU);
-        
+        using ImagePtr = std::shared_ptr<Image>;
+        Failable<ImagePtr> OpenImage(const char* path);
     }
 }

@@ -4,6 +4,8 @@
 // #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include "GL/gl.h"
+
 #include <format>
 #include <cstring>
 #include <algorithm>
@@ -26,54 +28,54 @@ namespace RawEdit
             return false;
         }
 
-        Failable<ImagePtr> Transfer(ImagePtr im, Device device)
+        Image::~Image()
         {
-            if (im->device != Device::CPU)
-                return std::unexpected(NotImplemented("Only transfer from CPU images are supported for now"));
-
-            if (device != Device::CPU)
-                return std::unexpected(NotImplemented("Only CPU images are supported for now"));
-            
-            return im;
+            delete[] data;
         }
 
-        Failable<ImagePtr> LoadImage(const char* path, Device device)
+        Error Image::UploadGPU()
+        {
+            return gpuImage.UploadData(width, height, (void*)data);
+        }
+
+        Failable<ImagePtr> LoadImage(const char* path)
         {
             // Copy data
-            Image* im = new Image;
-            im->metadata.path   = path;
+            Image* im = new Image();
+           1im->metadata.path   = path;
             im->metadata.source = "PC";
-            im->device = Device::CPU;
 
             int width, height, channels;
-            if (stbi_is_16_bit(path)) 
-            {
-                im->bytes = 2;
-                im->data = (uint8_t*)stbi_load(path, &width, &height, &channels, 0);
-            }
-            else 
-            {
-                im->bytes = 1;
-                im->data = (uint8_t*)stbi_load(path, &width, &height, &channels, 0);
-            }
-            im->width = width;
-            im->height = height;
-            im->channels = channels;
-
-            if (im->data == nullptr)
+            uint8_t* data = stbi_load(path, &width, &height, &channels, 0);
+            
+            if (data == nullptr)
             {
                 delete im;
                 return std::unexpected(IOError(std::format("[Image Loader] - Can not load '{}': {}", path, stbi_failure_reason())));
             }
+            im->data = new std::float16_t[width * height * 3];
             
-            auto deleter = [](Image* ptr) {
-                stbi_image_free(ptr->data); 
-                delete ptr;
-            };
-            return Transfer(ImagePtr(im, deleter), device);
+            #pragma omp parallel for collapse(2)
+            for (int i = 0; i < height; ++i)
+            {
+                for (int j = 0; j < width; ++j)
+                {
+                    uint32_t idx = j + i * width;
+                    for (int c = 0; c < channels; ++c)
+                        im->data[c + idx * 3] = data[c + idx * channels]/ 255.f16;
+
+                    for (int c = channels; c < 3; ++c)
+                        im->data[c + idx * 3] = im->data[0 + idx * 3];
+                }
+            }
+
+            im->width = width;
+            im->height = height;
+
+            return ImagePtr(im);
         }
 
-        Failable<ImagePtr> LoadRAWImage(const char* path, Device device)
+        Failable<ImagePtr> LoadRAWImage(const char* path)
         {
             LibRaw processor;
 
@@ -100,26 +102,34 @@ namespace RawEdit
                 return std::unexpected(NotImplemented("RawEdit does not support non-byte value per component"));
             
             // Copy data
-            Image* im = new Image;
+            Image* im = new Image();
             im->metadata.path   = path;
             im->metadata.source = std::format("{} - {}", processor.imgdata.idata.make, processor.imgdata.idata.model);
             im->width    = rawimage->width;
             im->height   = rawimage->height;
-            im->bytes    = rawimage->bits / 8;
-            im->channels = rawimage->colors;
-            im->device   = Device::CPU;
-            im->data     = new uint8_t[rawimage->data_size];
-            memcpy(im->data, rawimage->data, rawimage->data_size);
             
-            auto deleter = [](Image* ptr) {
-                delete[] ptr->data; 
-                delete   ptr;
-            };
+            const std::uint8_t* data = (std::uint8_t*)rawimage->data;
+            im->data = new std::float16_t[im->width * im->height * 3];
+
+            #pragma omp parallel for collapse(2)
+            for (uint32_t i = 0; i < im->height; ++i)
+            {
+                for (uint32_t j = 0; j < im->width; ++j)
+                {
+                    uint32_t idx = j + i * im->width;
+
+                    for (int c = 0; c < rawimage->colors; ++c)
+                        im->data[c + idx * 3] = (std::float16_t)(data[c + idx * rawimage->colors]) / 255.f16; 
+
+                    for (int c = rawimage->colors; c < 3; ++c)
+                        im->data[c + idx * 3] = im->data[0 + idx * 3];
+                }
+            }
             LibRaw::dcraw_clear_mem(rawimage);
-            return Transfer(ImagePtr(im, deleter), device);
+            return ImagePtr(im);
         }
 
-        Failable<ImagePtr> OpenImage(const char* path, Device device)
+        Failable<ImagePtr> OpenImage(const char* path)
         {
             namespace fs = std::filesystem;
             auto fpath = fs::path(path);
@@ -134,9 +144,9 @@ namespace RawEdit
                 return std::unexpected(IOError(std::format("Can not deduce extension of '{}'", path)));
             
             if (stb_loadable(ext))
-                return LoadImage(path, device);
+                return LoadImage(path);
             else 
-                return LoadRAWImage(path, device);
+                return LoadRAWImage(path);
         }
     }
 }

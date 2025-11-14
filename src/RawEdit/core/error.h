@@ -14,7 +14,8 @@ namespace RawEdit
                 NO_ERROR              = 0,
                 UK_ERROR              = 1,
                 NOT_IMPLEMENTED_ERROR = 2,
-                IO_ERROR              = 3 
+                IO_ERROR              = 3,
+                SHADER_ERROR          = 4
             };
 
             Error(Code _code) : code(_code) 
@@ -38,6 +39,11 @@ namespace RawEdit
             return Error(Error::Code::NO_ERROR);
         }
 
+        inline Error UkError(const std::string& message)
+        {
+            return Error(Error::Code::UK_ERROR, message);
+        }
+
         inline Error IOError(const std::string& message)
         {
             return Error(Error::Code::IO_ERROR, message);
@@ -46,6 +52,11 @@ namespace RawEdit
         inline Error NotImplemented(const std::string& message)
         {
             return Error(Error::Code::NOT_IMPLEMENTED_ERROR, message);
+        }
+
+        inline Error ShaderError(const std::string& message)
+        {
+            return Error(Error::Code::SHADER_ERROR, message);
         }
 
 

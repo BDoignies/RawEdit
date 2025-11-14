@@ -2,7 +2,7 @@
 
 #include "../core/error.h"
 #include "../core/image.h"
-#include "shadermanager.h"
+#include "../core/shadermanager.h"
 
 namespace RawEdit
 {

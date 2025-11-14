@@ -107,6 +107,13 @@ void ImageManager::SelectPrevious()
     Select((int32_t)selected - 1);
 }
 
+std::vector<RawEdit::core::Error> ImageManager::pullErrors()
+{
+    auto err = errors;
+    errors.clear();
+    return errors;
+}
+
 void ImageManager::Select(int32_t idx)
 {
     selected = idx;

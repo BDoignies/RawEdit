@@ -170,9 +170,9 @@ namespace RawEdit
             }
             else if (device == Device::GPU_OPENGL)
             {
-                // TODO: Do it on texture directly
                 auto newIm = Rescale(im, w, h, method, Device::CPU);
-                im->gpuImage.UploadData(newIm->width, newIm->height, newIm->data);
+                im->gpuImage   .UploadData(newIm->width, newIm->height, newIm->data);
+                im->workingCopy.UploadData(newIm->width, newIm->height, newIm->data);
                 return im;
             }
             return nullptr;

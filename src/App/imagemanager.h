@@ -25,6 +25,8 @@ public:
     void SelectPrevious();
     void Select(int32_t idx);
 
+    std::vector<RawEdit::core::Error> pullErrors();
+
     void Reload();
     void SetResizeFactor(float factor);
     void SetResizeAlgorithm(const char* name);

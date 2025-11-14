@@ -23,6 +23,8 @@ App::App()
 
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+    RawEdit::core::ShaderManager::SetShaderPath("shaders/");
 }
 
 int App::run() 
@@ -51,6 +53,11 @@ int App::run()
 void App::OnProcess(float dt)
 {
     manager.Update();
+    for (auto err : manager.pullErrors())
+    {
+        if (err)
+            spdlog::error(err.errorString);
+    }
 }
 
 

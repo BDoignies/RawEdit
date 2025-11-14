@@ -42,7 +42,7 @@ namespace RawEdit
         {
             // Copy data
             Image* im = new Image();
-           1im->metadata.path   = path;
+            im->metadata.path   = path;
             im->metadata.source = "PC";
 
             int width, height, channels;

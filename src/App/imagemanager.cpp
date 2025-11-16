@@ -141,6 +141,16 @@ const Texture2D* ImageManager::CurrentRLTexture() const
     return &it->second.texture;
 }
 
+RawEdit::algorithm::Mask* ImageManager::CurrentMask()
+{
+    if (allPaths.size() == 0) return nullptr;
+
+    auto it = images.find(allPaths[selected]);
+    if (it == images.end())
+        return nullptr;
+    return &it->second.mask;
+}
+
 void ImageManager::AsyncLoad(const std::string& path)
 {
     if (loaders.size() < maxLoader)
@@ -175,12 +185,13 @@ void ImageManager::ImageLoaded(RawEdit::core::ImagePtr im)
     }
     else
     {
-        auto err = im->UploadGPU();
+        auto err = im->UploadGPU(true);
         if (err) errors.push_back(err);
     }
 
     images[im->metadata.path] = { 
         .image   = im, 
+        .mask    = RawEdit::algorithm::Mask(im->gpuImage.width, im->gpuImage.height),
         .texture = ConvertToRaylibTexture(im.get()) 
     };
 }
@@ -221,15 +232,15 @@ uint32_t ImageManager::RamUsage() const
 {
     uint32_t count = 0;
     for (const auto& im : images)
-        count += im.second.image->DataSize() / (1024 * 1024);
-    return count;
+        count += (im.second.image->DataSize() + im.second.mask.GetMask()->DataSize());
+    return count / (1024 * 1024);
 }
 
 uint32_t ImageManager::VRamUsage() const
 {
     uint32_t count = 0;
     for (const auto& im : images)
-        count += im.second.image->GPUDataSize() / (1024 * 1024);
-    return count;
-}
+        count += (im.second.image->GPUDataSize() + im.second.mask.GetMask()->GPUDataSize());
+    return count / (1024 * 1024);
 
+}

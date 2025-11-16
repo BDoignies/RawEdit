@@ -1,5 +1,6 @@
 add_library(RawEditAlgorithm STATIC
     rescale.cpp
+    mask.cpp
 )
 
 file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)

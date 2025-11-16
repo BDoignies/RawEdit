@@ -44,7 +44,7 @@ namespace RawEdit
             Image& operator=(const Image& other) = delete;
             ~Image();
 
-            Error UploadGPU();
+            Error UploadGPU(bool wcopy = false);
 
             inline uint32_t GetIndex(uint32_t i, uint32_t j, uint32_t c) const 
             {

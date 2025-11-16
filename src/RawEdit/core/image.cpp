@@ -40,13 +40,16 @@ namespace RawEdit
             delete[] data;
         }
 
-        Error Image::UploadGPU()
+        Error Image::UploadGPU(bool wkcopy)
         {
             Error gpu = gpuImage.UploadData(width, height, (void*)data);
-            Error wkc = workingCopy.UploadData(width, height, (void*)data);
-            
             if (gpu) return gpu;
-            if (wkc) return wkc;
+            
+            if (wkcopy)
+            {
+                Error wkc = workingCopy.UploadData(width, height, (void*)data);
+                if (wkc) return wkc;
+            }
             return NoError();
         }
 
@@ -127,7 +130,7 @@ namespace RawEdit
 
                     #pragma unroll
                     for (int c = 0; c < rawimage->colors; ++c)
-                        im->SetValue(i, j, c, data[c + idx * rawimage->colors] / 255.f);
+                        im->SetValue(i, j, c, data[c + idx * rawimage->colors] / 255.f16);
 
                     #pragma unroll
                     for (int c = rawimage->colors; c < IMG_ALPHA; ++c)

@@ -17,8 +17,12 @@ class ImageManager
 public:
     void Update();
 
+    // Those methods are marked const because but it may give the
+    // impression the image will never be modified, because opengl
+    // requires uses an id.
     const RawEdit::core::Image* CurrentImage() const;
     const Texture2D* CurrentRLTexture() const;
+    RawEdit::algorithm::Mask* CurrentMask();
     
     void AddImage(std::string path);
     void SelectNext();
@@ -49,6 +53,7 @@ private:
     struct LoadedImage
     {
         RawEdit::core::ImagePtr image;
+        RawEdit::algorithm::Mask mask;
         Texture2D texture;
     };
 

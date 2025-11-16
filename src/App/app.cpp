@@ -50,6 +50,7 @@ int App::run()
         const float dt = current - time;
 
         OnProcess(dt);
+        OnEvent();
         BeginDrawing();
         {
             ClearBackground(DARKGRAY);
@@ -71,6 +72,35 @@ void App::OnProcess(float dt)
     {
         if (err)
             spdlog::error(err.errorString);
+    }
+}
+
+void App::OnEvent()
+{
+    auto im = manager.CurrentImage();
+    if (im != nullptr)
+    {
+        const Vector2 pos = GetMousePosition();
+        const Rectangle area = ComputeMainImageArea();
+        if (CheckCollisionPointRec(pos, area))
+        {
+            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+            {
+                auto mask = manager.CurrentMask();
+                const float w = mask->GetMask()->width;
+                const float h = mask->GetMask()->height;
+                const float ax = (pos.x - area.x) / (float)area.width;
+                const float ay = (pos.y - area.y) / (float)area.height;
+                const float cW = std::min(w / imageZoom, w);
+                const float cH = std::min(h / imageZoom, h);
+                
+                if (mask->GetMaskCount() < 1)
+                    mask->NewMask();
+
+                mask->Circle(0, imagePos.x + ax * cW, imagePos.y + ay * cH, 15.f);
+                mask->Update();
+            }
+        }
     }
 }
 
@@ -206,6 +236,14 @@ void App::OnRender(float dt)
         shader->RunAndWait();
 
         DrawTexturePro(texture, src, dest, Vector2Zero(), 0.f, WHITE); 
+        
+        auto mask = manager.CurrentMask();
+        if (mask != nullptr)
+        {
+            auto maskIm = mask->GetMask();
+            
+            DrawTexturePro(ConvertToRaylibTexture(maskIm), src, dest, Vector2Zero(), 0.f, WHITE); 
+        }
     }
 }
 

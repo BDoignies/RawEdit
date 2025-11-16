@@ -5,7 +5,7 @@ Texture2D ConvertToRaylibTexture(const RawEdit::core::Image* img)
 {
     if (img->workingCopy.Loaded())
     {
-        spdlog::info("Using direct conversion (working copy)");
+        // spdlog::info("Using direct conversion (working copy)");
         Texture2D texture = {
             .id = img->workingCopy.id,
             .width   = (int)img->workingCopy.width, 
@@ -17,7 +17,7 @@ Texture2D ConvertToRaylibTexture(const RawEdit::core::Image* img)
     }
     else if(img->gpuImage.Loaded())
     {
-        spdlog::info("Using direct conversion (gpuImage copy - {})", img->gpuImage.id);
+        // spdlog::info("Using direct conversion (gpuImage copy - {})", img->gpuImage.id);
         Texture2D texture = {
             .id      = img->gpuImage.id,
             .width   = (int)img->gpuImage.width, 

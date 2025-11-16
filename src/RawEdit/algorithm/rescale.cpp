@@ -12,12 +12,9 @@ namespace RawEdit
         {
             const float wratio = im->width  / w;
             const float hratio = im->height / h;
-
-            Image* newIm = new Image;
+            
+            ImagePtr newIm = std::make_shared<Image>(w, h);
             newIm->metadata = im->metadata;
-            newIm->width  = w;
-            newIm->height = h;
-            newIm->data = new std::float16_t[w * h * 3];
 
             #pragma omp parallel for collapse(2)
             for (uint32_t i = 0; i < h; ++i)
@@ -30,12 +27,12 @@ namespace RawEdit
                     memcpy(
                         newIm->data + newIm->GetIndex(   i,    j, 0),
                            im->data +    im->GetIndex(srcY, srcX, 0),
-                        sizeof(std::float16_t) * 3
+                        sizeof(DataType) * IMG_CHANNELS
                     );
                 }
             }
             
-            return ImagePtr(newIm);
+            return newIm;
         }
 
         ImagePtr BilinearCPU(ImagePtr im, uint32_t w, uint32_t h)
@@ -43,11 +40,8 @@ namespace RawEdit
             const float wratio = im->width  / w;
             const float hratio = im->height / h;
 
-            Image* newIm = new Image;
+            ImagePtr newIm = std::make_shared<Image>(w, h);
             newIm->metadata = im->metadata;
-            newIm->width  = w;
-            newIm->height = h;
-            newIm->data = new std::float16_t[w * h * 3];
             
             #pragma omp parallel for collapse(2)
             for (uint32_t i = 0; i < h; ++i)
@@ -64,8 +58,8 @@ namespace RawEdit
 
                     const float xw = x - xi;
                     const float yw = y - yi;
-
-                    for (uint32_t ch = 0; ch < 3; ++ch)
+                    
+                    for (uint32_t ch = 0; ch < IMG_CHANNELS; ++ch)
                     {
                         const float a = (float)im->GetValue(yi, xi, ch);
                         const float b = (float)im->GetValue(yj, xi, ch);
@@ -83,7 +77,7 @@ namespace RawEdit
                 }
             }
             
-            return ImagePtr(newIm);
+            return newIm;
         }
 
         ImagePtr BicubicCPU(ImagePtr im, uint32_t w, uint32_t h)
@@ -101,11 +95,8 @@ namespace RawEdit
             const float wratio = im->width  / w;
             const float hratio = im->height / h;
 
-            Image* newIm = new Image;
+            ImagePtr newIm = std::make_shared<Image>(w, h);
             newIm->metadata = im->metadata;
-            newIm->width  = w;
-            newIm->height = h;
-            newIm->data = new std::float16_t[w * h * 3];
             
             #pragma omp parallel for collapse(2)
             for (uint32_t i = 0; i < h; ++i)
@@ -127,7 +118,8 @@ namespace RawEdit
                     const float dx = x - xi0;
                     const float dy = y - yi0;
 
-                    for (uint32_t ch = 0; ch < 3; ++ch)
+                    #pragma unroll
+                    for (uint32_t ch = 0; ch < IMG_CHANNELS; ++ch)
                     {
                         const float bm1 = kernel(dx, 
                             im->GetValue(yim1, xim1, ch), im->GetValue(yim1, xi0, ch), 
@@ -152,7 +144,7 @@ namespace RawEdit
                 }
             }
             
-            return ImagePtr(newIm);
+            return newIm;
         }
 
         ImagePtr Rescale(ImagePtr im, uint32_t w, uint32_t h, RescaleMethod method, Device device)

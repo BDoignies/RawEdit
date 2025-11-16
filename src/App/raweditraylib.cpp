@@ -11,7 +11,7 @@ Texture2D ConvertToRaylibTexture(const RawEdit::core::Image* img)
             .width   = (int)img->workingCopy.width, 
             .height  = (int)img->workingCopy.height, 
             .mipmaps = 1,
-            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16
+            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16A16
         };
         return texture;
     }
@@ -23,7 +23,7 @@ Texture2D ConvertToRaylibTexture(const RawEdit::core::Image* img)
             .width   = (int)img->gpuImage.width, 
             .height  = (int)img->gpuImage.height, 
             .mipmaps = 1,
-            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16
+            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16A16
         };
         return texture;
     }
@@ -35,7 +35,7 @@ Texture2D ConvertToRaylibTexture(const RawEdit::core::Image* img)
             .width   = (int)img->width, 
             .height  = (int)img->height, 
             .mipmaps = 1,
-            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16
+            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16A16
         };
 
         return LoadTextureFromImage(im);

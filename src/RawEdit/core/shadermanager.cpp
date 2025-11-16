@@ -1,4 +1,5 @@
 #include "shadermanager.h"
+#include <iostream>
 
 namespace RawEdit
 {
@@ -20,7 +21,7 @@ namespace RawEdit
             return lastError;
         }
 
-        const ComputeShader* ShaderManager::GetShader(const std::string& name, bool reload)
+        ComputeShader* ShaderManager::GetShader(const std::string& name, bool reload)
         {
             auto it = shaderList.find(name);
             lastError = NoError();

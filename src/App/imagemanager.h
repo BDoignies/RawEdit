@@ -28,6 +28,7 @@ public:
     std::vector<RawEdit::core::Error> pullErrors();
 
     void Reload();
+    void Clear();
     void SetResizeFactor(float factor);
     void SetResizeAlgorithm(const char* name);
 

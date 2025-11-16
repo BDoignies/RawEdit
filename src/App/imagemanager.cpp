@@ -190,6 +190,13 @@ void ImageManager::Reload()
     images.clear();
 }
 
+void ImageManager::Clear()
+{
+    loaders.clear();
+    allPaths.clear();
+    images.clear();
+}
+
 void ImageManager::SetResizeFactor(float factor)
 {
     resizeFactor = factor;

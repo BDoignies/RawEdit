@@ -1,4 +1,3 @@
-#include "app.h"
 #include "nfd.h"
 #include "raylib.h"
 #include "raymath.h"
@@ -7,10 +6,14 @@
 #include "spdlog/spdlog.h"
 #include "imgui_internal.h"
 
+#include "app.h"
+#include "utils.h"
+
 #include <iostream>
 #include <cmath>
 
 #define EDITOR_WINDOW "Editor"
+
 App::App() 
 {
     const unsigned int screenWidth  = 1280;
@@ -24,7 +27,18 @@ App::App()
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    RawEdit::core::ShaderManager::SetShaderPath("shaders/");
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback(glDebugOutput, nullptr);
+    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
+
+    RawEdit::core::ShaderManager::SetShaderPath(exeDirectory() / "shaders/");
+
+    const auto shader = RawEdit::core::ShaderManager::GetShader("emptyshader");
+    shader->Bind();
+    shader->AddUniform("inTex");
+    shader->AddUniform("outTex");
+    shader->AddUniform("exposure");
 }
 
 int App::run() 
@@ -181,6 +195,15 @@ void App::OnRender(float dt)
         
         const Rectangle dest = ComputeMainImageArea();
         const Rectangle src  = ComputeMainImageSrcArea(dest);
+        
+        const auto shader = RawEdit::core::ShaderManager::GetShader("emptyshader");
+        
+        shader->Bind();
+            shader->ComputeDispatchSizes(texture.width, texture.height);
+            shader->SetUniform("inTex" , im->gpuImage   ,  true, false);
+            shader->SetUniform("outTex", im->workingCopy, false, true);
+            shader->SetUniform("exposure", tmpExposure);
+        shader->RunAndWait();
 
         DrawTexturePro(texture, src, dest, Vector2Zero(), 0.f, WHITE); 
     }
@@ -261,6 +284,12 @@ void App::ParamMenu(float dt)
                 manager.Reload();
             ImGui::TreePop();
         }
+
+        if (ImGui::TreeNodeEx("Exposure", flag))
+        {
+            ImGui::SliderFloat("Exposure", &tmpExposure, 0.f, 10.f);
+            ImGui::TreePop();
+        }
     }
     ImGui::End();
 }
@@ -292,6 +321,7 @@ std::vector<std::string> App::OpenDialog()
 
 App::~App()
 {
+    manager.Clear();
     rlImGuiShutdown();
     CloseWindow();
 }

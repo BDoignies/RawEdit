@@ -36,27 +36,27 @@ namespace RawEdit
 
         inline Error NoError() 
         {
-            return Error(Error::Code::NO_ERROR);
+            return Error(Error::Code::NO_ERROR, "[NoError]\n");
         }
 
         inline Error UkError(const std::string& message)
         {
-            return Error(Error::Code::UK_ERROR, message);
+            return Error(Error::Code::UK_ERROR, "[UNKNOWN_ERROR]: " + message);
         }
 
         inline Error IOError(const std::string& message)
         {
-            return Error(Error::Code::IO_ERROR, message);
+            return Error(Error::Code::IO_ERROR, "[IO_ERROR]: " + message);
         }
 
         inline Error NotImplemented(const std::string& message)
         {
-            return Error(Error::Code::NOT_IMPLEMENTED_ERROR, message);
+            return Error(Error::Code::NOT_IMPLEMENTED_ERROR, "[NOT_IMPLEMENTED_ERROR]: " + message);
         }
 
         inline Error ShaderError(const std::string& message)
         {
-            return Error(Error::Code::SHADER_ERROR, message);
+            return Error(Error::Code::SHADER_ERROR, "[SHADER_ERROR]: " + message);
         }
 
 

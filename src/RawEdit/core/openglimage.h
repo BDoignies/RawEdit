@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include "error.h"
-#include "GL/gl.h"
+#include "common.h"
 
 namespace RawEdit
 {
@@ -26,9 +26,6 @@ namespace RawEdit
             uint32_t DataSize();
         public:
             GLuint id;
-            GLint internalFormat;
-            GLint format;
-            GLint type;
 
             uint32_t width;
             uint32_t height;

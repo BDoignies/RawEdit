@@ -33,12 +33,12 @@ namespace RawEdit
 
             uint32_t width    = 0;
             uint32_t height   = 0;
-            std::float16_t* data  = nullptr;
+            DataType* data  = nullptr;
             
             OpenGLImage gpuImage;
             OpenGLImage workingCopy;
 
-            Image() {}
+            Image(uint32_t w, uint32_t h);
             Image(const Image& other) = delete;
             Image(Image&& other)      = delete;
             Image& operator=(const Image& other) = delete;
@@ -48,25 +48,25 @@ namespace RawEdit
 
             inline uint32_t GetIndex(uint32_t i, uint32_t j, uint32_t c) const 
             {
-                return c + (j + i * width) * 3;
+                return c + (j + i * width) * IMG_CHANNELS;
             }
 
             inline uint64_t DataSize() const 
             {
-                return width * height * 3 * sizeof(std::float16_t);
+                return width * height * IMG_CHANNELS * sizeof(DataType);
             }
 
             inline uint64_t GPUDataSize() const 
             {
-                return (gpuImage.width * gpuImage.height + workingCopy.width * workingCopy.height) * 3 * sizeof(std::float16_t);
+                return (gpuImage.width * gpuImage.height + workingCopy.width * workingCopy.height) * IMG_CHANNELS * sizeof(DataType);
             }
             
-            inline void SetValue(uint32_t i, uint32_t j, uint32_t c, std::float16_t val)
+            inline void SetValue(uint32_t i, uint32_t j, uint32_t c, DataType val)
             {
                 data[GetIndex(i, j, c)] = val;
             }
 
-            inline std::float16_t GetValue(uint32_t i, uint32_t j, uint32_t c) const
+            inline DataType GetValue(uint32_t i, uint32_t j, uint32_t c) const
             {
                 return data[GetIndex(i, j, c)];
             }

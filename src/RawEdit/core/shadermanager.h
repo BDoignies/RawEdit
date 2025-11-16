@@ -14,7 +14,7 @@ namespace RawEdit
         {
         public:
             static void  SetShaderPath(const std::string& path);
-            static const ComputeShader* GetShader(const std::string& name, bool reload = false);
+            static ComputeShader* GetShader(const std::string& name, bool reload = false);
             static Error GetError();
         private:
             static Error lastError;

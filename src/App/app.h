@@ -36,4 +36,6 @@ private: // Image data
 private: // Display Image data
     Vector2 imagePos{0};
     float   imageZoom = 1.f;
+private:
+    float tmpExposure = 1.f;
 };

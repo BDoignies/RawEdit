@@ -3,8 +3,8 @@
 
 // #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#include "common.h"
 
-#include "GL/gl.h"
 
 #include <format>
 #include <cstring>
@@ -28,6 +28,13 @@ namespace RawEdit
             return false;
         }
 
+        Image::Image(uint32_t w, uint32_t h)
+        {
+            width  = w;
+            height = h;
+            data   = new DataType[width * height * IMG_CHANNELS]{};
+        }
+
         Image::~Image()
         {
             delete[] data;
@@ -35,25 +42,26 @@ namespace RawEdit
 
         Error Image::UploadGPU()
         {
-            return gpuImage.UploadData(width, height, (void*)data);
+            Error gpu = gpuImage.UploadData(width, height, (void*)data);
+            Error wkc = workingCopy.UploadData(width, height, (void*)data);
+            
+            if (gpu) return gpu;
+            if (wkc) return wkc;
+            return NoError();
         }
 
         Failable<ImagePtr> LoadImage(const char* path)
         {
-            // Copy data
-            Image* im = new Image();
-            im->metadata.path   = path;
-            im->metadata.source = "PC";
 
             int width, height, channels;
             uint8_t* data = stbi_load(path, &width, &height, &channels, 0);
-            
+
             if (data == nullptr)
-            {
-                delete im;
                 return std::unexpected(IOError(std::format("[Image Loader] - Can not load '{}': {}", path, stbi_failure_reason())));
-            }
-            im->data = new std::float16_t[width * height * 3];
+
+            ImagePtr im = std::make_shared<Image>(width, height);
+            im->metadata.path   = path;
+            im->metadata.source = "PC";
             
             #pragma omp parallel for collapse(2)
             for (int i = 0; i < height; ++i)
@@ -61,18 +69,21 @@ namespace RawEdit
                 for (int j = 0; j < width; ++j)
                 {
                     uint32_t idx = j + i * width;
-                    for (int c = 0; c < channels; ++c)
-                        im->data[c + idx * 3] = data[c + idx * channels]/ 255.f16;
 
-                    for (int c = channels; c < 3; ++c)
-                        im->data[c + idx * 3] = im->data[0 + idx * 3];
+                    #pragma unroll
+                    for (int c = 0; c < channels; ++c)
+                        im->SetValue(i, j, c, data[c + idx * channels]);
+                    
+                    #pragma unroll
+                    for (int c = channels; c < IMG_ALPHA; ++c)
+                        im->SetValue(i, j, c, im->GetValue(i, j, 0));
+
+                    #pragma unroll
+                    for (int c = IMG_ALPHA; c < IMG_CHANNELS; ++c)
+                        im->SetValue(i, j, c, IMG_MAX);
                 }
             }
-
-            im->width = width;
-            im->height = height;
-
-            return ImagePtr(im);
+            return im;
         }
 
         Failable<ImagePtr> LoadRAWImage(const char* path)
@@ -102,15 +113,11 @@ namespace RawEdit
                 return std::unexpected(NotImplemented("RawEdit does not support non-byte value per component"));
             
             // Copy data
-            Image* im = new Image();
+            ImagePtr im = std::make_shared<Image>(rawimage->width, rawimage->height);
             im->metadata.path   = path;
             im->metadata.source = std::format("{} - {}", processor.imgdata.idata.make, processor.imgdata.idata.model);
-            im->width    = rawimage->width;
-            im->height   = rawimage->height;
             
             const std::uint8_t* data = (std::uint8_t*)rawimage->data;
-            im->data = new std::float16_t[im->width * im->height * 3];
-
             #pragma omp parallel for collapse(2)
             for (uint32_t i = 0; i < im->height; ++i)
             {
@@ -118,15 +125,21 @@ namespace RawEdit
                 {
                     uint32_t idx = j + i * im->width;
 
+                    #pragma unroll
                     for (int c = 0; c < rawimage->colors; ++c)
-                        im->data[c + idx * 3] = (std::float16_t)(data[c + idx * rawimage->colors]) / 255.f16; 
+                        im->SetValue(i, j, c, data[c + idx * rawimage->colors] / 255.f);
 
-                    for (int c = rawimage->colors; c < 3; ++c)
-                        im->data[c + idx * 3] = im->data[0 + idx * 3];
+                    #pragma unroll
+                    for (int c = rawimage->colors; c < IMG_ALPHA; ++c)
+                        im->SetValue(i, j, c, im->GetValue(i, j, 0));
+
+                    #pragma unroll
+                    for (int c = IMG_ALPHA; c < IMG_CHANNELS; ++c)
+                        im->SetValue(i, j, c, IMG_MAX);
                 }
             }
             LibRaw::dcraw_clear_mem(rawimage);
-            return ImagePtr(im);
+            return im;
         }
 
         Failable<ImagePtr> OpenImage(const char* path)

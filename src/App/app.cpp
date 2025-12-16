@@ -13,6 +13,7 @@
 #include <cmath>
 
 #define EDITOR_WINDOW "Editor"
+#define LOG_WINDOW "Logs"
 
 App::App() 
 {
@@ -29,16 +30,8 @@ App::App()
 
     glEnable(GL_DEBUG_OUTPUT);
     glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-    glDebugMessageCallback(glDebugOutput, nullptr);
-    glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
-
-    RawEdit::core::ShaderManager::SetShaderPath(exeDirectory() / "shaders/");
-
-    const auto shader = RawEdit::core::ShaderManager::GetShader("emptyshader");
-    shader->Bind();
-    shader->AddUniform("inTex");
-    shader->AddUniform("outTex");
-    shader->AddUniform("exposure");
+    // glDebugMessageCallback(glDebugOutput, nullptr);
+    // glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 }
 
 int App::run() 
@@ -70,8 +63,14 @@ void App::OnProcess(float dt)
     manager.Update();
     for (auto err : manager.pullErrors())
     {
-        if (err)
-            spdlog::error(err.errorString);
+        if (!err.empty())
+            spdlog::error(err);
+    }
+
+    auto errs = manager.pullErrors();
+    for (const auto& err : errs)
+    {
+        logs.push_back(err);
     }
 }
 
@@ -87,18 +86,17 @@ void App::OnEvent()
             if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
             {
                 auto mask = manager.CurrentMask();
-                const float w = mask->GetMask()->width;
-                const float h = mask->GetMask()->height;
+                const float w = mask->width;
+                const float h = mask->height;
                 const float ax = (pos.x - area.x) / (float)area.width;
                 const float ay = (pos.y - area.y) / (float)area.height;
                 const float cW = std::min(w / imageZoom, w);
                 const float cH = std::min(h / imageZoom, h);
-                
+
                 if (mask->GetMaskCount() < 1)
                     mask->NewMask();
 
                 mask->Circle(0, imagePos.x + ax * cW, imagePos.y + ay * cH, 15.f);
-                mask->Update();
             }
         }
     }
@@ -222,28 +220,11 @@ void App::OnRender(float dt)
     {
         const auto& texture = *manager.CurrentRLTexture();
         const float aspect  = texture.width / texture.height;
-        
+
         const Rectangle dest = ComputeMainImageArea();
         const Rectangle src  = ComputeMainImageSrcArea(dest);
-        
-        const auto shader = RawEdit::core::ShaderManager::GetShader("emptyshader");
-        
-        shader->Bind();
-            shader->ComputeDispatchSizes(texture.width, texture.height);
-            shader->SetUniform("inTex" , im->gpuImage   ,  true, false);
-            shader->SetUniform("outTex", im->workingCopy, false, true);
-            shader->SetUniform("exposure", tmpExposure);
-        shader->RunAndWait();
 
         DrawTexturePro(texture, src, dest, Vector2Zero(), 0.f, WHITE); 
-        
-        auto mask = manager.CurrentMask();
-        if (mask != nullptr)
-        {
-            auto maskIm = mask->GetMask();
-            
-            DrawTexturePro(ConvertToRaylibTexture(maskIm), src, dest, Vector2Zero(), 0.f, WHITE); 
-        }
     }
 }
 
@@ -266,12 +247,22 @@ void App::OnUI(float dt)
 
             ImGui::DockBuilderDockWindow(EDITOR_WINDOW, rightId);
         }
-
+        
+        LogMenu(dt);
         MainMenu(dt);
         ParamMenu(dt);
-        ImGui::ShowDebugLogWindow();
     }
     rlImGuiEnd();
+}
+
+void App::LogMenu(float dt)
+{
+    ImGui::Begin(LOG_WINDOW);
+    {
+        for (const auto& s : logs)
+            ImGui::Text(s.c_str());
+    }
+    ImGui::End();
 }
 
 void App::MainMenu(float dt)
@@ -310,22 +301,15 @@ void App::ParamMenu(float dt)
             static const char* rescaleMethods[]{
                 "None", "Linear", "Bilinear", "Bicubic"
             };
+
             ImGui::Text("FPS: %d (%d)", fpsAvg, fps);
             ImGui::Text("Imaged loaded: %d", manager.NbImageLoaded());
             ImGui::Text("Imaged loading: %d", manager.NbImageLoading());
-            ImGui::Text("Ram: %dM / VRam: %dM", manager.RamUsage(), manager.VRamUsage());
             
-            float factor = manager.GetResizeFactor();
+            float& factor = manager.GetResizeFactor();
             ImGui::SliderFloat("Resize Factor", &factor, 0.f, 1.f);
-            manager.SetResizeFactor(factor);
             if (ImGui::Button("Reload all"))
                 manager.Reload();
-            ImGui::TreePop();
-        }
-
-        if (ImGui::TreeNodeEx("Exposure", flag))
-        {
-            ImGui::SliderFloat("Exposure", &tmpExposure, 0.f, 10.f);
             ImGui::TreePop();
         }
     }

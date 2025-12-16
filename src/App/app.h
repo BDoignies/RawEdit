@@ -22,9 +22,12 @@ private:
     void OnEvent();
     void OnUI(float dt);
     void OnRender(float dt);
-
+    
+    void LogMenu(float dt);
     void MainMenu(float dt);
     void ParamMenu(float dt);
+
+    void DisplayParam(RawEdit::Param& param);
 
     std::vector<std::string> OpenDialog();
 private:
@@ -37,5 +40,5 @@ private: // Display Image data
     Vector2 imagePos{0};
     float   imageZoom = 1.f;
 private:
-    float tmpExposure = 1.f;
+    std::vector<std::string> logs;
 };

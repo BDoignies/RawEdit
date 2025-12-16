@@ -1,44 +1,29 @@
 #include "raweditraylib.h"
 #include "spdlog/spdlog.h"
 
-Texture2D ConvertToRaylibTexture(const RawEdit::core::Image* img)
+Texture2D ConvertToRaylibTexture(const RawEdit::Image* img)
 {
-    if (img->workingCopy.Loaded())
+    if (img->backend != RawEdit::ImageBackend::CPU && 
+        img->type != RawEdit::ImageDataType::UINT8)
     {
-        // spdlog::info("Using direct conversion (working copy)");
-        Texture2D texture = {
-            .id = img->workingCopy.id,
-            .width   = (int)img->workingCopy.width, 
-            .height  = (int)img->workingCopy.height, 
-            .mipmaps = 1,
-            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16A16
-        };
-        return texture;
+        spdlog::error("Unsupported img type");
+        return {};
     }
-    else if(img->gpuImage.Loaded())
-    {
-        // spdlog::info("Using direct conversion (gpuImage copy - {})", img->gpuImage.id);
-        Texture2D texture = {
-            .id      = img->gpuImage.id,
-            .width   = (int)img->gpuImage.width, 
-            .height  = (int)img->gpuImage.height, 
-            .mipmaps = 1,
-            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16A16
-        };
-        return texture;
-    }
-    else
-    {
-        spdlog::warn("Conversion using upload copy");
-        Image im = {
-            .data    = img->data,
-            .width   = (int)img->width, 
-            .height  = (int)img->height, 
-            .mipmaps = 1,
-            .format  = PIXELFORMAT_UNCOMPRESSED_R16G16B16A16
-        };
 
-        return LoadTextureFromImage(im);
-    }
-    return {};
+    spdlog::warn("Conversion using upload copy");
+
+    using ImType = const RawEdit::CPUImage<uint8_t>*;
+    ImType rawim = reinterpret_cast<ImType>(img);
+    Image im = {
+        .data    = const_cast<uint8_t*>(rawim->GetDataPtr()),
+        .width   = (int)img->width, 
+        .height  = (int)img->height, 
+        .mipmaps = 1,
+        .format  = PIXELFORMAT_UNCOMPRESSED_R8G8B8
+    };
+
+    if (img->channels == 1)
+        im.format = PIXELFORMAT_UNCOMPRESSED_GRAYSCALE;
+
+    return LoadTextureFromImage(im);
 }

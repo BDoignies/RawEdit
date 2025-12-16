@@ -10,6 +10,7 @@
 #include "raweditraylib.h"
 #include "spdlog/spdlog.h"
 #include "raylib.h"
+
 #include "RawEdit/RawEdit.h"
 
 class ImageManager
@@ -20,56 +21,54 @@ public:
     // Those methods are marked const because but it may give the
     // impression the image will never be modified, because opengl
     // requires uses an id.
-    const RawEdit::core::Image* CurrentImage() const;
+    const RawEdit::ImagePtr CurrentImage() const;
     const Texture2D* CurrentRLTexture() const;
-    RawEdit::algorithm::Mask* CurrentMask();
+    RawEdit::Mask* CurrentMask();
     
     void AddImage(std::string path);
     void SelectNext();
     void SelectPrevious();
     void Select(int32_t idx);
 
-    std::vector<RawEdit::core::Error> pullErrors();
+    std::vector<RawEdit::Error> pullErrors();
 
     void Reload();
     void Clear();
-    void SetResizeFactor(float factor);
-    void SetResizeAlgorithm(const char* name);
 
-    float GetResizeFactor() const;
+    float  GetResizeFactor() const;
+    float& GetResizeFactor();
     uint32_t NbImageLoading() const;
     uint32_t NbImageLoaded() const;
-    uint32_t RamUsage() const;
-    uint32_t VRamUsage() const;
 private:
     std::vector<uint32_t> GenerateWindowIndices() const;
 
     struct Loader
     {
         std::string path;
-        std::future<RawEdit::core::Failable<RawEdit::core::ImagePtr>> future;
+        std::future<RawEdit::Failable<RawEdit::ImagePtr>> future;
     };
 
     struct LoadedImage
     {
-        RawEdit::core::ImagePtr image;
-        RawEdit::algorithm::Mask mask;
+        RawEdit::ImagePtr image;
+        RawEdit::Mask mask;
         Texture2D texture;
     };
 
     void AsyncLoad(const std::string& path);
-    void ImageLoaded(RawEdit::core::ImagePtr ptr);
+    void ImageLoaded(RawEdit::ImagePtr ptr);
     void CheckAndFetch();
     
-    float resizeFactor  = .5f;
+    RawEdit::Rescale rescale;
     uint32_t maxLoader  = 3;
     uint32_t windowSize = 3;
 
     uint32_t selected = 0;
 
     std::vector<std::string> allPaths;
+    std::vector<std::string> failed;
     std::vector<Loader> loaders;
 
-    std::vector<RawEdit::core::Error> errors;
+    std::vector<RawEdit::Error> errors;
     std::map<std::string, LoadedImage> images;
 };

@@ -1,20 +1,33 @@
 #include "imagemanager.h"
+#include <numeric>
 
 void ImageManager::AddImage(std::string path)
 {
+    spdlog::info("Adding {} to load queue", path);
+    std::erase_if(failed, [&](const auto& f) {
+        return f == path;
+    });
     allPaths.push_back(std::move(path));
 }
 
+// TODO: allocation at each frame... Same for Check and Fetch
 std::vector<uint32_t> ImageManager::GenerateWindowIndices() const
 {
+    std::vector<uint32_t> result;
+
     if (allPaths.size() == 0) return {};
     if (windowSize == 0) return {};
 
-    std::vector<uint32_t> result;
-    result.reserve(windowSize);
-    result.push_back(selected);
+    if (allPaths.size() < windowSize)
+    {
+        result.resize(allPaths.size());
+        std::iota(result.begin(), result.end(), 0);
+        return result;
+    }
+
 
     uint32_t i = 1;
+    result.push_back(selected);
     while(result.size() < windowSize)
     {
         const int32_t idxLeft  = selected +  i;
@@ -27,6 +40,8 @@ std::vector<uint32_t> ImageManager::GenerateWindowIndices() const
             result.push_back(idxLeft);
         if (idxRight >= 0)
             result.push_back(idxRight);
+
+        ++i;
     }
     return result;
 }
@@ -46,19 +61,28 @@ void ImageManager::CheckAndFetch()
     // Something can be loaded
     if (loaders.size() < maxLoader)
     {
-        std::set<std::string> currentPaths;
-        for (const auto& im : images)       currentPaths.insert(im.first);
-        for (const auto& loader : loaders)  currentPaths.insert(loader.path);
+        std::vector<std::string> currentPaths;
+        for (const auto& im : images)
+            currentPaths.push_back(im.first);
+
+        for (const auto& loader : loaders)  
+            currentPaths.push_back(loader.path);
+
+        for (const auto& f : failed) 
+            currentPaths.push_back(f);
 
         for (auto i : indices)
         {
             if (loaders.size() >= maxLoader)
                 break;
             
-            if (currentPaths.find(allPaths[i]) == currentPaths.end())
+            auto it = std::find(currentPaths.begin(), 
+                                currentPaths.end(), 
+                                allPaths[i]);
+            if (it == currentPaths.end())
             {
                 AsyncLoad(allPaths[i]);
-                currentPaths.insert(allPaths[i]);
+                currentPaths.push_back(allPaths[i]);
             }
         }
     }
@@ -74,15 +98,12 @@ void ImageManager::Update()
             auto result = it->future.get();
             if (result)
             {
-                auto im = *result;
-                if (im->data != nullptr)
-                    ImageLoaded(im);
-                else
-                    errors.push_back(RawEdit::core::UkError("No data loaded"));
+                ImageLoaded(*result);
             }
             else 
             {
                 errors.push_back(result.error());
+                failed.push_back(it->path);
             }
 
             it = loaders.erase(it);
@@ -92,7 +113,7 @@ void ImageManager::Update()
             ++it;
         }
     }
-    
+
     // Unload unwanted textures and fetch new ones
     CheckAndFetch();
 }
@@ -107,7 +128,7 @@ void ImageManager::SelectPrevious()
     Select((int32_t)selected - 1);
 }
 
-std::vector<RawEdit::core::Error> ImageManager::pullErrors()
+std::vector<RawEdit::Error> ImageManager::pullErrors()
 {
     auto err = errors;
     errors.clear();
@@ -121,14 +142,14 @@ void ImageManager::Select(int32_t idx)
     if (selected >= allPaths.size()) selected = allPaths.size() - 1;
 }
 
-const RawEdit::core::Image* ImageManager::CurrentImage() const
+const RawEdit::ImagePtr ImageManager::CurrentImage() const
 {
     if (allPaths.size() == 0) return nullptr;
     
     auto it = images.find(allPaths[selected]);
     if (it == images.end())
         return nullptr;
-    return it->second.image.get();
+    return it->second.image;
 }
 
 const Texture2D* ImageManager::CurrentRLTexture() const
@@ -141,7 +162,7 @@ const Texture2D* ImageManager::CurrentRLTexture() const
     return &it->second.texture;
 }
 
-RawEdit::algorithm::Mask* ImageManager::CurrentMask()
+RawEdit::Mask* ImageManager::CurrentMask()
 {
     if (allPaths.size() == 0) return nullptr;
 
@@ -161,39 +182,34 @@ void ImageManager::AsyncLoad(const std::string& path)
             .future = std::async(std::launch::async,
             [=]()
             {
-                return RawEdit::core::OpenImage(path.c_str());
+                return RawEdit::Load(path.c_str());
             })
         });
     }
 }
 
-void ImageManager::ImageLoaded(RawEdit::core::ImagePtr im)
+void ImageManager::ImageLoaded(RawEdit::ImagePtr im)
 {
-    spdlog::info("{} / {} loaded", im->metadata.path, im->gpuImage.id);
+    spdlog::info("{} loaded", im->metadata.path);
 
     // Resizing
-    if (resizeFactor != 1.f)
+    RawEdit::ImagePtr newIm(im->EmptyCopy(true));
+    rescale.BindInputImage(im);
+    rescale.BindOutputImage(newIm);
+
+    RawEdit::Error err = rescale.Run();
+    if (!err.empty())
     {
-        const uint32_t targetW = im->width  * resizeFactor;
-        const uint32_t targetH = im->height * resizeFactor;
-        
-        RawEdit::algorithm::Rescale(
-            im, targetW, targetH, 
-            RawEdit::algorithm::RescaleMethod::NEAREST,
-            RawEdit::core::Device::GPU_OPENGL
-        );
-    }
-    else
-    {
-        auto err = im->UploadGPU(true);
-        if (err) errors.push_back(err);
+        spdlog::error("{}", err);
+        errors.push_back(err);
+        failed.push_back(im->metadata.path);
+        return;
     }
 
-    images[im->metadata.path] = { 
-        .image   = im, 
-        .mask    = RawEdit::algorithm::Mask(im->gpuImage.width, im->gpuImage.height),
-        .texture = ConvertToRaylibTexture(im.get()) 
-    };
+    auto& loc = images[newIm->metadata.path];
+    loc.image = newIm;
+    loc.mask.FillData(newIm->width, newIm->height, 1, true);
+    loc.texture = ConvertToRaylibTexture(newIm.get());
 }
 
 void ImageManager::Reload()
@@ -208,14 +224,14 @@ void ImageManager::Clear()
     images.clear();
 }
 
-void ImageManager::SetResizeFactor(float factor)
-{
-    resizeFactor = factor;
-}
-
 float ImageManager::GetResizeFactor() const 
 {
-    return resizeFactor;
+    return rescale["factor"].AsFloat();
+}
+
+float& ImageManager::GetResizeFactor()
+{
+    return rescale["factor"].AsFloat();
 }
 
 uint32_t ImageManager::NbImageLoading() const
@@ -228,19 +244,3 @@ uint32_t ImageManager::NbImageLoaded() const
     return images.size();
 }
 
-uint32_t ImageManager::RamUsage() const
-{
-    uint32_t count = 0;
-    for (const auto& im : images)
-        count += (im.second.image->DataSize() + im.second.mask.GetMask()->DataSize());
-    return count / (1024 * 1024);
-}
-
-uint32_t ImageManager::VRamUsage() const
-{
-    uint32_t count = 0;
-    for (const auto& im : images)
-        count += (im.second.image->GPUDataSize() + im.second.mask.GetMask()->GPUDataSize());
-    return count / (1024 * 1024);
-
-}

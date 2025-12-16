@@ -1,7 +1,8 @@
 #pragma once
 
-#include "core/error.h"
-#include "core/image.h"
+#include "image/image.h"
+#include "utils/error.h"
+#include "io/imageloader.h"
 
-#include "algorithm/rescale.h"
-#include "algorithm/mask.h"
+#include "algorithm/standard/rescale.h"
+
